@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\PsgBuilder.Collision\\PsgBuilder.Collision.csproj" />
+    <ProjectReference Include="..\\PsgBuilder.Core\\PsgBuilder.Core.csproj" />
+    <ProjectReference Include="..\\PsgBuilder.Glb\\PsgBuilder.Glb.csproj" />
+    <ProjectReference Include="..\\PsgBuilder.Mesh\\PsgBuilder.Mesh.csproj" />
+    <ProjectReference Include="..\\PsgBuilder.Texture\\PsgBuilder.Texture.csproj" />
+  </ItemGroup>
+
+</Project>
+
