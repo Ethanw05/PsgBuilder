@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PsgBuilder.Mesh</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PsgBuilder.Core\PsgBuilder.Core.csproj" />
+    <ProjectReference Include="..\PsgBuilder.Glb\PsgBuilder.Glb.csproj" />
+  </ItemGroup>
+
+</Project>

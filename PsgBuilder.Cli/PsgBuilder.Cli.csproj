@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PsgBuilder.Collision\PsgBuilder.Collision.csproj" />
+    <ProjectReference Include="..\PsgBuilder.Glb\PsgBuilder.Glb.csproj" />
+    <ProjectReference Include="..\PsgBuilder.Mesh\PsgBuilder.Mesh.csproj" />
+    <ProjectReference Include="..\PsgBuilder.Texture\PsgBuilder.Texture.csproj" />
+  </ItemGroup>
+
+</Project>
