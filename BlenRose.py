@@ -19,6 +19,11 @@ from bpy.types import (
     PropertyGroup,
     UIList,
 )
+
+
+# Track temporary suppression of reactive node updates while we batch-assign
+# detected texture/UV properties from an existing shader tree.
+_SUPPRESSED_UPDATE_MATERIALS = set()
 from bpy.props import (
     BoolProperty,
     EnumProperty,
@@ -425,6 +430,99 @@ def _get_owner_material(settings):
     return None
 
 
+
+
+def _guess_active_uv_for_material(mat):
+    """Best-effort fallback UV map name for materials without explicit UV Map nodes."""
+    if not mat:
+        return None
+
+    uv_name_counts = {}
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not getattr(obj, "material_slots", None):
+            continue
+        if not any(slot.material == mat for slot in obj.material_slots):
+            continue
+
+        mesh = obj.data
+        uv_layers = getattr(mesh, "uv_layers", None)
+        if not uv_layers:
+            continue
+
+        preferred = None
+        for layer in uv_layers:
+            if getattr(layer, "active_render", False) and layer.name:
+                preferred = layer.name
+                break
+        if not preferred and getattr(uv_layers, "active", None) and uv_layers.active.name:
+            preferred = uv_layers.active.name
+        if not preferred and len(uv_layers) > 0 and uv_layers[0].name:
+            preferred = uv_layers[0].name
+
+        if preferred:
+            uv_name_counts[preferred] = uv_name_counts.get(preferred, 0) + 1
+
+    if not uv_name_counts:
+        return None
+
+    return max(uv_name_counts.items(), key=lambda kv: kv[1])[0]
+
+
+def _trace_uv_map_name_from_socket(nt, socket, mat, visited_nodes=None, depth=0):
+    """Walk upstream from a vector socket and resolve an explicit or implied UV map name."""
+    if depth > 8 or socket is None:
+        return None
+    if visited_nodes is None:
+        visited_nodes = set()
+
+    for link in nt.links:
+        if link.to_socket != socket:
+            continue
+
+        from_node = link.from_node
+        if not from_node:
+            continue
+
+        node_ptr = from_node.as_pointer()
+        if node_ptr in visited_nodes:
+            continue
+        visited_nodes.add(node_ptr)
+
+        if from_node.type == "UVMAP":
+            uv_name = getattr(from_node, "uv_map", None)
+            if uv_name:
+                return uv_name
+
+        if from_node.type == "TEX_COORD" and link.from_socket and link.from_socket.name == "UV":
+            return _guess_active_uv_for_material(mat)
+
+        if from_node.type == "ATTRIBUTE":
+            attr_name = getattr(from_node, "attribute_name", None)
+            if attr_name:
+                return attr_name
+
+        for input_socket in getattr(from_node, "inputs", []):
+            resolved = _trace_uv_map_name_from_socket(nt, input_socket, mat, visited_nodes, depth + 1)
+            if resolved:
+                return resolved
+
+    return None
+
+
+def _resolve_uv_map_for_image_node(nt, img_node, mat):
+    """Resolve UV map name for an Image Texture node, even without explicit UVMap node."""
+    if not img_node or img_node.type != "TEX_IMAGE":
+        return None
+
+    vector_input = img_node.inputs.get("Vector") if hasattr(img_node, "inputs") else None
+    resolved = _trace_uv_map_name_from_socket(nt, vector_input, mat)
+    if resolved:
+        return resolved
+
+    # If vector input is unlinked, Blender's UV lookup is implicit; use material fallback.
+    return _guess_active_uv_for_material(mat)
+
+
 def _detect_textures_from_node_tree(mat):
     """
     Scan the shader node tree for Image Texture nodes and map them to BlenRose channels.
@@ -528,18 +626,12 @@ def _detect_textures_from_node_tree(mat):
         
         # If we found a match and haven't already assigned this channel
         if best_match and best_score > 0 and best_match not in detected_textures:
-            # Find the UV node connected to this texture
-            uv_node = None
-            for link in nt.links:
-                if link.to_node == img_node and link.to_socket and "Vector" in link.to_socket.name:
-                    from_node = link.from_node
-                    if from_node and from_node.type == "UVMAP":
-                        uv_node = from_node
-                        break
-            
+            uv_map_name = _resolve_uv_map_for_image_node(nt, img_node, mat)
+
             detected_textures[best_match] = {
                 "image": img_node.image,
-                "uv_node": uv_node,
+                "uv_node": None,
+                "uv_map_name": uv_map_name,
                 "image_node": img_node
             }
     
@@ -558,6 +650,8 @@ def _auto_fill_textures_from_node_tree(settings, update_existing=False):
     mat = _get_owner_material(settings)
     if not mat:
         return
+
+    mat_ptr = mat.as_pointer()
     
     detected = _detect_textures_from_node_tree(mat)
     
@@ -588,30 +682,33 @@ def _auto_fill_textures_from_node_tree(settings, update_existing=False):
         "noise": "noise_uv",
     }
     
-    for channel_name, texture_info in detected.items():
-        tex_prop = texture_prop_map.get(channel_name)
-        uv_prop = uv_prop_map.get(channel_name)
-        
-        if tex_prop:
-            # Update texture (respecting update_existing flag)
-            current_image = getattr(settings, tex_prop, None)
-            if update_existing or not current_image:
-                setattr(settings, tex_prop, texture_info["image"])
-        
-        if uv_prop and texture_info["uv_node"]:
-            # Get UV map name from the UV node
-            uv_map_name = texture_info["uv_node"].uv_map
-            if uv_map_name:
-                # Find the UV map in the enum and set it using the identifier string
-                try:
-                    uv_enum_items = uv_channel_items(settings, bpy.context)
-                    for identifier, name, desc in uv_enum_items:
-                        if identifier == uv_map_name or name == uv_map_name:
-                            # Set using the identifier string (first element of tuple)
-                            setattr(settings, uv_prop, identifier)
-                            break
-                except:
-                    pass  # Silently fail if context is not available
+    _SUPPRESSED_UPDATE_MATERIALS.add(mat_ptr)
+    try:
+        for channel_name, texture_info in detected.items():
+            tex_prop = texture_prop_map.get(channel_name)
+            uv_prop = uv_prop_map.get(channel_name)
+            
+            if tex_prop:
+                # Update texture (respecting update_existing flag)
+                current_image = getattr(settings, tex_prop, None)
+                if update_existing or not current_image:
+                    setattr(settings, tex_prop, texture_info["image"])
+            
+            if uv_prop:
+                uv_map_name = texture_info.get("uv_map_name")
+                if uv_map_name:
+                    # Find the UV map in the enum and set it using the identifier string
+                    try:
+                        uv_enum_items = uv_channel_items(settings, bpy.context)
+                        for identifier, name, desc in uv_enum_items:
+                            if identifier == uv_map_name or name == uv_map_name:
+                                # Set using the identifier string (first element of tuple)
+                                setattr(settings, uv_prop, identifier)
+                                break
+                    except:
+                        pass  # Silently fail if context is not available
+    finally:
+        _SUPPRESSED_UPDATE_MATERIALS.discard(mat_ptr)
 
 
 def _update_diffuse_has_alpha(self, context):
@@ -682,6 +779,9 @@ def _update_all_blenrose_nodes(self, context):
     """
     mat = _get_owner_material(self)
     if not mat:
+        return
+
+    if mat.as_pointer() in _SUPPRESSED_UPDATE_MATERIALS:
         return
     
     # Ensure nodes are enabled
@@ -1926,8 +2026,8 @@ class BLENROSE_OT_auto_detect_textures(Operator):
                 setattr(settings, tex_prop, texture_info["image"])
                 detected_count += 1
             
-            if uv_prop and texture_info["uv_node"]:
-                uv_map_name = texture_info["uv_node"].uv_map
+            if uv_prop:
+                uv_map_name = texture_info.get("uv_map_name")
                 if uv_map_name:
                     uv_enum_items = uv_channel_items(settings, context)
                     for identifier, name, desc in uv_enum_items:
