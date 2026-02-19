@@ -26,9 +26,12 @@ public static class InstanceDataRwBuilder
     public static ulong ComputeInstanceGuid(
         (float X, float Y, float Z) boundsMin,
         (float X, float Y, float Z) boundsMax,
-        int vertexCount)
+        int vertexCount,
+        string? uniqueSalt = null)
     {
         string boundsStr = BuildPythonBoundsString(boundsMin, boundsMax, vertexCount);
+        if (!string.IsNullOrWhiteSpace(uniqueSalt))
+            boundsStr = $"{boundsStr}|{uniqueSalt}";
         byte[] hash = MD5.HashData(Encoding.UTF8.GetBytes(boundsStr));
         return BinaryPrimitives.ReadUInt64BigEndian(hash.AsSpan(0, 8));
     }
@@ -37,6 +40,7 @@ public static class InstanceDataRwBuilder
         (float X, float Y, float Z) boundsMin,
         (float X, float Y, float Z) boundsMax,
         int vertexCount,
+        string? uniqueSalt = null,
         uint encodedPtrAt0x80 = 0x00800000u,
         uint encodedPtrAt0x84 = 0,
         uint encodedPtrAt0x88 = 0,
@@ -44,7 +48,7 @@ public static class InstanceDataRwBuilder
     {
         // Python: bounds_str = f"{self.obj.bounds_min}{self.obj.bounds_max}{len(self.obj.vertices)}"
         // bounds_min/max are Python lists printed with ", " separators and float formatting.
-        ulong guid = ComputeInstanceGuid(boundsMin, boundsMax, vertexCount);
+        ulong guid = ComputeInstanceGuid(boundsMin, boundsMax, vertexCount, uniqueSalt);
 
         var blob = new List<byte>();
         blob.AddRange(BeU32(0xACB31C9A));

@@ -16,6 +16,12 @@ public interface IMeshPsgInput
     RenderMaterialDataRwBuilder.MaterialTextureOverrides? TextureChannelOverrides { get; }
     /// <summary>AttributorMaterialName stream path. Null = "environmentsimple.default" (StartPark). Use "environment.default" for SkateSchool-style static meshes.</summary>
     string? AttributorMaterialPath => null;
+    /// <summary>
+    /// Optional salt included in instance GUID generation.
+    /// Use a stable per-asset value (for example GLB file stem) to prevent duplicate instance GUIDs
+    /// for meshes that share identical bounds and vertex counts.
+    /// </summary>
+    string? InstanceGuidSalt => null;
 }
 
 /// <summary>
