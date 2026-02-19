@@ -1,3 +1,4 @@
+using System.IO;
 using PsgBuilder.Core.Rw;
 using PsgBuilder.Glb;
 
@@ -15,10 +16,12 @@ public sealed class MeshInputFromGlb : IMeshPsgInput
     public string MaterialName { get; }
     public RenderMaterialDataRwBuilder.MaterialTextureOverrides? TextureChannelOverrides { get; set; }
     public string? AttributorMaterialPath { get; set; }
+    public string? InstanceGuidSalt { get; }
 
     public MeshInputFromGlb(string glbPath, float scale = 1f, bool reverseWinding = false)
     {
         var result = MeshVertexFlattener.Flatten(glbPath);
+        InstanceGuidSalt = Path.GetFileNameWithoutExtension(glbPath);
         MaterialName = result.MaterialName;
         BoundsMin = (result.Bounds.Min.X * scale, result.Bounds.Min.Y * scale, result.Bounds.Min.Z * scale);
         BoundsMax = (result.Bounds.Max.X * scale, result.Bounds.Max.Y * scale, result.Bounds.Max.Z * scale);

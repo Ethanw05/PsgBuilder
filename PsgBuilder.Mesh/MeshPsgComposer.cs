@@ -138,6 +138,7 @@ public static class MeshPsgComposer
                 boundsMin,
                 boundsMax,
                 part.VertexData.Length / MeshVertexPacker.Stride, // actual vertex count for InstanceData
+                uniqueSalt: input.InstanceGuidSalt,
                 encodedPtrAt0x80: renderModelDictPtrAt0x80,
                 nameSuffix: "_Blender_Export_Mesh"),
             RwTypeIds.InstanceData));
@@ -182,7 +183,8 @@ public static class MeshPsgComposer
         ulong instanceGuid = InstanceDataRwBuilder.ComputeInstanceGuid(
             boundsMin,
             boundsMax,
-            part.VertexData.Length / MeshVertexPacker.Stride);
+            part.VertexData.Length / MeshVertexPacker.Stride,
+            input.InstanceGuidSalt);
         const int instanceSubrefIndex = 3; // 0=Material, 1=IslandAreas, 2=IslandAABBs, 3=tInstance
         var tocSpec = MeshTocBuilder.Build(1, nameChannelGuid, instanceGuid, renderMaterialDictIndex, instanceDataDictIndex, instanceSubrefIndex);
         objects.Add(new PsgObjectSpec(DynamicTocBuilder.Build(tocSpec), RwTypeIds.TableOfContents));
@@ -238,6 +240,7 @@ public static class MeshPsgComposer
                 boundsMin,
                 boundsMax,
                 totalVertices,
+                uniqueSalt: input.InstanceGuidSalt,
                 encodedPtrAt0x80: (uint)(3 + 7 * numMeshes),
                 nameSuffix: "_Blender_Export_Mesh"),
             RwTypeIds.InstanceData));
@@ -324,7 +327,7 @@ public static class MeshPsgComposer
         int renderMaterialDictIndex = 1;
         int instanceDataDictIndex = 2;
         int instanceSubrefIndex = 3 * numMeshes;
-        ulong instanceGuid = InstanceDataRwBuilder.ComputeInstanceGuid(boundsMin, boundsMax, totalVertices);
+        ulong instanceGuid = InstanceDataRwBuilder.ComputeInstanceGuid(boundsMin, boundsMax, totalVertices, input.InstanceGuidSalt);
 
         var tocSpec = MeshTocBuilder.Build(
             numMeshes,

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Numerics;
 using PsgBuilder.Core.Rw;
 using PsgBuilder.Glb;
@@ -18,9 +19,11 @@ public sealed class MeshInputFromGlbMulti : IMeshPsgInput
     public RenderMaterialDataRwBuilder.MaterialTextureOverrides? TextureChannelOverrides { get; set; }
     /// <inheritdoc />
     public string? AttributorMaterialPath { get; set; }
+    public string? InstanceGuidSalt { get; }
 
     public MeshInputFromGlbMulti(string glbPath, float scale = 1f, bool reverseWinding = false)
     {
+        InstanceGuidSalt = Path.GetFileNameWithoutExtension(glbPath);
         var model = ModelRoot.Load(glbPath);
         Build(model, scale, reverseWinding, out var boundsMin, out var boundsMax, out var parts, out var materialName);
         BoundsMin = boundsMin;
